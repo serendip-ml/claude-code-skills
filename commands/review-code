@@ -1,0 +1,38 @@
+---
+description: Review code changes before creating a PR - catches bugs, security issues, design
+problems
+args: "[diff|<branch>] - What to review (default: uncommitted changes)"
+---
+
+# /review-code
+
+Run the review-code skill to perform a critical, evidence-based code review before creating a PR.
+
+**What it does:**
+- Gets the diff (uncommitted changes or vs a branch)
+- Reviews for bugs, security issues, design problems, style issues
+- Groups findings by severity (Critical, Important, Minor, Nitpick)
+- Provides file:line references and suggested fixes
+- Detects deliberate vs accidental changes to avoid false positives
+
+**Severity Tiers:**
+- **Critical:** Bugs, security vulnerabilities, data loss risks
+- **Important:** Breaking changes, resource leaks, real problems
+- **Minor:** Code quality improvements
+- **Nitpick:** Observations, edge cases, style preferences
+
+**Usage:**
+```
+/review-code              # Review uncommitted changes
+/review-code diff         # Same as above
+/review-code develop      # Compare against develop branch
+/review-code main         # Compare against main branch
+```
+
+**Output:**
+- Findings grouped by severity
+- Summary and recommendation (Ready to PR / Fix issues first / Needs rework)
+
+---
+
+Load and execute the skill from `skills/review-code/SKILL.md`.

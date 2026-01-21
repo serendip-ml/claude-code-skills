@@ -1,0 +1,32 @@
+---
+description: Grade a Python project with evidence-based scoring across 7 categories
+---
+
+# /grade-python-project
+
+Comprehensive, evidence-based audit of a Python project.
+
+**What it does:**
+- Discovers project structure (package name, test command, tools)
+- Determines project type (library vs application)
+- Runs verification gates (LICENSE, tests pass, imports work)
+- Grades 7 categories: Architecture, Code Quality, Security, Testing, Documentation, Production
+  Readiness, Dependencies
+- Produces a weighted score with severity-calibrated deductions
+- Every deduction requires verification (command + output)
+
+**Output:**
+- Summary scorecard displayed in conversation
+- Top 5 prioritized issues
+- Optional: Full report saved to `.GRADING.md`
+
+**Usage:**
+```
+/grade-python-project
+```
+
+Run from the root of a Python project with `pyproject.toml` or `setup.py`.
+
+---
+
+Load and execute the skill from `skills/grade-python-project/SKILL.md`.
