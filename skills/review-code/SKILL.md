@@ -52,6 +52,7 @@ Parse arguments to determine ref and mode:
 |-------|-----|------|
 | (none) | HEAD | default |
 | `help` | - | show help |
+| `default` | HEAD | default |
 | `full` | HEAD | full |
 | `paranoid` | HEAD | paranoid |
 | `main` | main | default |

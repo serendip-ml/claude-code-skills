@@ -27,6 +27,8 @@ Run the review-code skill to perform a critical, evidence-based code review befo
 /review-code main             # Diff against main, 1 agent
 /review-code abc123f          # Diff against commit hash, 1 agent
 /review-code full             # Uncommitted changes, 2 agents
+/review-code main full        # Diff against main, 2 agents
+/review-code paranoid         # Uncommitted changes, 3 agents
 /review-code main paranoid    # Diff against main, 3 agents
 /review-code help             # Show help
 ```
