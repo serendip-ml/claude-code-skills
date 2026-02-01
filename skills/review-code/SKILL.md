@@ -77,7 +77,7 @@ USAGE
   /review-code help
 
 ARGUMENTS
-  ref       Git reference to compare against (default: HEAD for uncommitted)
+  ref       Git reference to diff against (default: HEAD, showing uncommitted changes)
             Can be: branch (main), tag (v1.2.0), or commit hash (abc123f)
 
   mode      Review intensity:
@@ -166,7 +166,7 @@ Single-agent review. Execute the following workflow directly.
 Based on the argument provided:
 
 ```bash
-# For 'diff' or no argument - uncommitted changes
+# For no argument (ref=HEAD) - uncommitted changes
 git diff HEAD
 
 # For branch name (e.g., 'develop', 'main')
