@@ -1,7 +1,7 @@
 ---
 description: Review code changes before creating a PR - catches bugs, security issues, design
-problems
-args: "[diff|<branch>] - What to review (default: uncommitted changes)"
+  problems
+args: "[ref] [default|full|paranoid] | help"
 ---
 
 # /review-code
@@ -14,23 +14,25 @@ Run the review-code skill to perform a critical, evidence-based code review befo
 - Groups findings by severity (Critical, Important, Minor, Nitpick)
 - Provides file:line references and suggested fixes
 - Detects deliberate vs accidental changes to avoid false positives
+- Checks git history for regression risks
 
-**Severity Tiers:**
-- **Critical:** Bugs, security vulnerabilities, data loss risks
-- **Important:** Breaking changes, resource leaks, real problems
-- **Minor:** Code quality improvements
-- **Nitpick:** Observations, edge cases, style preferences
+**Modes:**
+- **default (1 agent):** Standard review - fast, thorough, cost-effective
+- **full (2 agents):** Adds context analysis (git history, architecture)
+- **paranoid (3 agents):** Maximum scrutiny (bugs + design + history agents)
 
 **Usage:**
 ```
-/review-code              # Review uncommitted changes
-/review-code diff         # Same as above
-/review-code develop      # Compare against develop branch
-/review-code main         # Compare against main branch
+/review-code                  # Uncommitted changes, 1 agent
+/review-code main             # Diff against main, 1 agent
+/review-code abc123f          # Diff against commit hash, 1 agent
+/review-code full             # Uncommitted changes, 2 agents
+/review-code main paranoid    # Diff against main, 3 agents
+/review-code help             # Show help
 ```
 
 **Output:**
-- Findings grouped by severity
+- Findings grouped by severity (Critical, Important, Minor, Nitpick)
 - Summary and recommendation (Ready to PR / Fix issues first / Needs rework)
 
 ---
