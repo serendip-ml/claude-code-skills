@@ -116,11 +116,20 @@ OUTPUT
 
 ### Tier 0: Bugs & Correctness → Critical
 - Logic errors, off-by-one, wrong comparisons
-- Null/None handling issues in common paths
-- Race conditions, deadlocks
-- Resource leaks (files, connections, memory)
+- Null/None handling — including **indirect paths** where None originates 2-3 calls upstream and flows
+  through to a `.method()` or `[key]` access downstream
+- Race conditions, deadlocks, TOCTOU (check-then-act without atomicity)
+- Resource leaks — not just files, but **partial init failures** (if `__init__` fails halfway, are
+already-created resources cleaned up?) and **multi-resource cleanup** (if one `.close()` raises, do
+  the rest still get closed?)
 - Exception handling gaps that will be hit
 - Edge cases not handled (in exercised code paths)
+- **Parameter forwarding** — when a function wraps another, are all parameters passed through?
+  Especially after adding new params upstream
+- **Transaction boundaries** — does a failed multi-step operation leave state consistent? Are
+  non-atomic sequences (create-then-update) safe if the second step fails?
+- **Query/filter completeness** — missing soft-delete filters, wrong join conditions, exact-match
+  where pattern matching was intended
 
 ### Tier 1: Security → Critical
 - Input validation missing on external input
@@ -132,6 +141,11 @@ OUTPUT
 
 ### Tier 2: Design & Maintainability → Important or Minor
 - Breaking API contracts → Important
+- **Config plumbing** → Important: hardcoded values that contradict config schema, shallow merge
+  where deep merge is needed, defaults that silently override user settings, config keys
+  referenced in code but never wired through
+- **Data integrity** → Important: non-atomic multi-step mutations without rollback, duplicate
+  handling gaps, missing uniqueness constraints, partial failures that leave inconsistent state
 - Functions doing too much → Minor (unless causing bugs)
 - Poor naming (unclear intent) → Minor
 - Code duplication → Minor or Nitpick
@@ -235,7 +249,9 @@ git blame -L <start>,<end> -- <file>
 
 For each file with changes:
 
-1. **Read the full diff for that file** - Understand the change in context
+1. **Read the full source file** — not just the diff. Understand the change in the context of the
+   whole file. Trace data flow: where do inputs come from? What calls the changed function? Can any
+   argument be None? Read callers and callees in other files as needed.
 2. **Check for issues** - Go through Tier 0-3 checklist
 3. **Verify before reporting** - Don't flag something without understanding it
 
@@ -322,15 +338,21 @@ DIFF TO REVIEW:
 [INSERT DIFF]
 
 FOCUS AREAS:
-- Tier 0 (Critical): Logic errors, null handling, race conditions, resource leaks
+- Tier 0 (Critical): Logic errors, indirect null/None paths, race conditions, resource leaks,
+  parameter forwarding gaps, transaction boundary issues, query/filter completeness
 - Tier 1 (Critical): Injection, hardcoded secrets, path traversal
-- Tier 2 (Important/Minor): Breaking API changes, poor structure, tight coupling
+- Tier 2 (Important/Minor): Breaking API changes, config plumbing (hardcoded vs config values,
+  shallow vs deep merge), data integrity (non-atomic mutations, missing constraints),
+  poor structure, tight coupling
 - Tier 3 (Minor/Nitpick): Inconsistent patterns, dead code, debug statements
 
 INSTRUCTIONS:
 1. Review each file in the diff
-2. Check against the focus areas above
-3. Verify issues before reporting (don't flag deliberate changes)
+2. **Read the full source file** for each changed file — don't rely on the diff alone. Trace data
+   flow beyond the diff: where do inputs come from? What calls the changed function? Can any
+   argument be None? Read callers and callees as needed.
+3. Check against the focus areas above
+4. Verify issues before reporting (don't flag deliberate changes)
 
 OUTPUT FORMAT:
 For each issue:
@@ -413,12 +435,21 @@ DIFF TO REVIEW:
 
 MINDSET: "Assume this code is broken. Find the bug."
 
+INSTRUCTIONS:
+1. **Read the full source file** for each changed file — don't rely on the diff alone.
+2. Trace data flow: where do inputs come from? What calls the changed function? Can any argument
+   be None? Read callers and callees as needed to verify.
+3. Only report issues you can prove with evidence from the code.
+
 LOOK FOR (ONLY THESE):
 - Logic errors, off-by-one, wrong comparisons
-- Null/None handling issues
-- Race conditions, deadlocks
-- Resource leaks (files, connections not closed)
+- Null/None handling — trace values backwards: can any input be None 2-3 calls up the stack?
+- Race conditions, deadlocks, TOCTOU (check-then-act without lock/transaction)
+- Resource leaks — partial init failures, multi-resource cleanup where one close() can skip the rest
 - Exception handling gaps
+- Parameter forwarding — wrapper functions that don't pass all params to the wrapped function
+- Transaction boundaries — multi-step mutations that leave inconsistent state on partial failure
+- Query/filter gaps — missing soft-delete filters, wrong join conditions
 - Injection, hardcoded secrets, path traversal
 
 OUTPUT FORMAT:
@@ -444,8 +475,18 @@ DIFF TO REVIEW:
 
 MINDSET: "Assume the architecture is wrong. Find the flaw."
 
+INSTRUCTIONS:
+1. **Read the full source file** for each changed file — don't rely on the diff alone.
+2. Check how the changed code integrates: does config flow through correctly? Are constraints
+   enforced? Read related files (config schemas, DB models, callers) as needed.
+3. Only report issues you can prove with evidence from the code.
+
 LOOK FOR (ONLY THESE):
 - Breaking API contracts (changed signatures, removed fields)
+- Config plumbing — hardcoded values vs config, shallow merge vs deep merge, defaults overriding
+  user settings, config keys referenced but not wired
+- Data integrity — non-atomic multi-step operations, missing uniqueness constraints, duplicate
+  handling gaps
 - Functions doing too much (>30 lines, multiple responsibilities)
 - Poor naming (unclear intent)
 - Tight coupling
@@ -717,6 +758,52 @@ The key question: **"Will this actually cause problems in practice?"**
 - Files opened without context managers
 - TODOs or FIXMEs added without ticket references
 - Commented-out code added
+
+## High-Frequency Patterns (from automated review data)
+
+These patterns are the most commonly caught issues across 1000+ code reviews. Check for them
+explicitly:
+
+### Config & Defaults
+- Hardcoded values that should come from config (timeouts, thresholds, URLs, sizes)
+- Config merge that replaces instead of deep-merging nested dicts
+- Default values that silently override user-provided settings
+- Config keys referenced in code but never loaded or wired through
+
+### Parameter & Data Flow
+- Wrapper functions that don't forward all parameters to the wrapped function
+- New parameters added to a function signature but not propagated by callers
+- Imports inside function bodies that should be at module level
+- Functions that accept `Optional` but don't handle the `None` case downstream
+
+### Data Integrity & Queries
+- Multi-step mutations without transaction/rollback (create A, then update B — what if B fails?)
+- Missing soft-delete filters in queries (fetching deleted records)
+- Duplicate detection gaps (missing unique constraints, no upsert guard)
+- Join conditions that produce wrong results (wrong FK, missing WHERE clause)
+
+### Resource & Cleanup
+- `__init__` that acquires multiple resources — if the 3rd fails, are the first 2 cleaned up?
+- Multi-resource cleanup in a loop — if one `.close()` raises, rest are skipped
+- Functions nested inside other functions by accident (indentation error)
+
+### Documentation & Accuracy (Nitpick)
+- Stale docstrings that reference removed/renamed functions, parameters, or return types
+- Comments that describe what the code used to do, not what it does now
+- Examples in docstrings or docs that use wrong defaults, missing params, or invalid imports
+- CHANGELOG entries that reference features that didn't ship in that version
+
+### Test & Validation Gaps (Nitpick)
+- Missing regression tests for bug fixes (the fix works, but what prevents re-introduction?)
+- Test assertions that validate call counts but not actual behavior
+- Input validation missing at entry points (CLI args, API params, config values)
+- Accepted but silently ignored parameters (function signature has it, body never uses it)
+
+### Code Hygiene (Nitpick)
+- Duplicate logic that should be extracted into a shared helper
+- Type annotations that are wrong or overly broad (`Any` where a specific type is known)
+- In-place mutation of arguments that callers don't expect to be modified
+- Zombie processes — subprocess spawned but never `wait()`ed on failure paths
 
 ## Context-Dependent (Verify First)
 - Functions over 30 lines (might be justified)
